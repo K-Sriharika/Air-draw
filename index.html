@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Air Draw — Gesture Canvas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* ─── Reset & Base ─────────────────────────────────── */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg:        #06060f;
+  --panel:     #0b0b18;
+  --border:    #1a1a35;
+  --text:      #9494c0;
+  --text-hi:   #d0d0f0;
+  --accent:    #7c4dff;
+  --cyan:      #00f5ff;
+  --font-ui:   'Space Mono', monospace;
+  --font-logo: 'Orbitron', sans-serif;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui);
+  overflow: hidden;
+  height: 100vh;
+  display: flex;
+  user-select: none;
+}
+
+/* ─── Layout ───────────────────────────────────────── */
+#canvas-area {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+}
+
+#drawCanvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* ─── Loading Screen ───────────────────────────────── */
+#loading {
+  position: absolute;
+  inset: 0;
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 20px;
+  z-index: 200;
+  transition: opacity 0.6s;
+}
+
+#loading h1 {
+  font-family: var(--font-logo);
+  font-size: 28px;
+  letter-spacing: 0.12em;
+  color: var(--cyan);
+  text-shadow: 0 0 30px var(--cyan);
+}
+
+#loading p {
+  font-size: 11px;
+  letter-spacing: 0.15em;
+  opacity: 0.5;
+}
+
+.spinner {
+  width: 36px; height: 36px;
+  border: 2px solid var(--border);
+  border-top-color: var(--cyan);
+  border-radius: 50%;
+  animation: spin 0.75s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ─── Webcam Preview ───────────────────────────────── */
+#cam-wrap {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  width: 180px;
+  border-radius: 10px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: 0 0 24px rgba(0,245,255,0.15);
+  opacity: 0.88;
+  transition: opacity 0.3s;
+}
+
+#cam-wrap:hover { opacity: 1; }
+
+#video {
+  width: 100%;
+  display: block;
+  transform: scaleX(-1);
+}
+
+#gesture-badge {
+  display: block;
+  padding: 5px 8px;
+  font-family: var(--font-ui);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  text-align: center;
+  background: rgba(6,6,15,0.85);
+  backdrop-filter: blur(6px);
+  color: var(--text);
+  transition: color 0.2s;
+}
+
+/* ─── Overlays ─────────────────────────────────────── */
+#fps {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  color: #222244;
+  letter-spacing: 0.1em;
+}
+
+#flash {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-logo);
+  font-size: 16px;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.9);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s;
+  text-shadow: 0 0 20px currentColor;
+}
+
+#brush-tip {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: rgba(255,255,255,0.4);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s;
+}
+
+/* ─── Sidebar ──────────────────────────────────────── */
+#sidebar {
+  width: 210px;
+  background: var(--panel);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+#sidebar::-webkit-scrollbar { width: 3px; }
+#sidebar::-webkit-scrollbar-track { background: transparent; }
+#sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* Sidebar logo header */
+#logo {
+  padding: 18px 16px 14px;
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-logo);
+  font-size: 13px;
+  letter-spacing: 0.12em;
+  color: var(--cyan);
+  text-shadow: 0 0 16px rgba(0,245,255,0.4);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#logo .dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--cyan);
+  box-shadow: 0 0 8px var(--cyan);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+/* Section blocks */
+.section {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.section-label {
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.25em;
+  text-transform: uppercase;
+  color: #2a2a55;
+  margin-bottom: 12px;
+}
+
+/* Color swatches */
+.swatch-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 7px;
+  margin-bottom: 10px;
+}
+
+.swatch {
+  aspect-ratio: 1;
+  border-radius: 7px;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+  position: relative;
+}
+
+.swatch:hover { transform: scale(1.1); }
+
+.swatch.active {
+  border-color: rgba(255,255,255,0.8);
+}
+
+input[type="color"]#custom-color {
+  width: 100%;
+  height: 30px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  background: transparent;
+  padding: 2px;
+}
+
+/* Brush preview */
+#brush-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 56px;
+  position: relative;
+}
+
+#brush-circle {
+  border-radius: 50%;
+  transition: width 0.15s, height 0.15s, background 0.3s, box-shadow 0.3s;
+}
+
+/* Gesture HUD rows */
+.g-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 0;
+  border-radius: 6px;
+  padding-left: 4px;
+  transition: background 0.2s;
+}
+
+.g-row.active {
+  background: rgba(255,255,255,0.04);
+}
+
+.g-icon { font-size: 16px; width: 22px; text-align: center; }
+
+.g-text {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  color: var(--text);
+  opacity: 0.5;
+  transition: opacity 0.2s, color 0.2s;
+}
+
+.g-row.active .g-text {
+  opacity: 1;
+  color: var(--cyan);
+}
+
+/* Action buttons */
+.action-btn {
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 7px;
+  padding: 8px 10px;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.action-btn:last-child { margin-bottom: 0; }
+
+.action-btn:hover {
+  border-color: var(--accent);
+  color: var(--text-hi);
+  background: rgba(124,77,255,0.08);
+}
+
+/* Footer */
+#footer {
+  margin-top: auto;
+  padding: 14px 16px;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  line-height: 1.8;
+  color: #1e1e3a;
+  border-top: 1px solid var(--border);
+}
+
+#footer a { color: #2a2a55; text-decoration: none; }
+#footer a:hover { color: var(--accent); }
+</style>
+</head>
+<body>
+
+<!-- ═══ Canvas Area ═══════════════════════════════════════ -->
+<div id="canvas-area">
+  <canvas id="drawCanvas"></canvas>
+
+  <!-- Webcam preview (bottom-left) -->
+  <div id="cam-wrap">
+    <span id="gesture-badge">·  ·  ·</span>
+    <video id="video" playsinline muted></video>
+  </div>
+
+  <!-- Overlays -->
+  <div id="fps">-- fps</div>
+  <div id="flash"></div>
+  <div id="brush-tip">Brush: 10px</div>
+
+  <!-- Loading screen -->
+  <div id="loading">
+    <h1>AIR DRAW</h1>
+    <div class="spinner"></div>
+    <p>Loading hand tracking model…</p>
+  </div>
+</div>
+
+<!-- ═══ Sidebar ═══════════════════════════════════════════ -->
+<div id="sidebar">
+  <div id="logo"><span class="dot"></span>AIR DRAW</div>
+
+  <!-- Color section -->
+  <div class="section">
+    <div class="section-label">Color</div>
+    <div class="swatch-grid" id="swatch-grid"></div>
+    <input type="color" id="custom-color" value="#7c4dff" title="Custom color">
+  </div>
+
+  <!-- Brush section -->
+  <div class="section">
+    <div class="section-label">Brush Size</div>
+    <div id="brush-preview">
+      <div id="brush-circle"></div>
+    </div>
+    <div style="text-align:center; font-size:9px; letter-spacing:0.1em; opacity:0.35;">
+      🤏 Pinch to resize
+    </div>
+  </div>
+
+  <!-- Gesture guide -->
+  <div class="section">
+    <div class="section-label">Gestures</div>
+    <div class="g-row" id="g-draw">
+      <span class="g-icon">☝️</span>
+      <span class="g-text">Index up — Draw</span>
+    </div>
+    <div class="g-row" id="g-erase">
+      <span class="g-icon">🖐️</span>
+      <span class="g-text">Open palm — Erase</span>
+    </div>
+    <div class="g-row" id="g-pause">
+      <span class="g-icon">✊</span>
+      <span class="g-text">Fist — Pause</span>
+    </div>
+    <div class="g-row" id="g-pinch">
+      <span class="g-icon">🤏</span>
+      <span class="g-text">Pinch — Resize brush</span>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="section">
+    <div class="section-label">Actions</div>
+    <button class="action-btn" onclick="undoStroke()">↩&nbsp; Undo <small style="opacity:0.4; margin-left:auto;">Ctrl Z</small></button>
+    <button class="action-btn" onclick="clearAll()">⊘&nbsp; Clear canvas</button>
+    <button class="action-btn" onclick="saveImage()">↓&nbsp; Save as PNG</button>
+  </div>
+
+  <!-- Footer -->
+  <div id="footer">
+    Air Draw v1.0<br>
+    MediaPipe Hands · Canvas API<br>
+    Zero dependencies<br>
+    <a href="https://github.com" target="_blank">github.com/yourusername/air-draw</a>
+  </div>
+</div>
+
+<!-- ═══ MediaPipe CDN ═════════════════════════════════════ -->
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/hands.js" crossorigin="anonymous"></script>
+<script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675466862/camera_utils.js" crossorigin="anonymous"></script>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// CONFIGURATION
+// ═══════════════════════════════════════════════════════════
+
+const PALETTE = [
+  '#00f5ff',  // electric cyan
+  '#ff00ff',  // neon magenta
+  '#39ff14',  // neon green
+  '#ff6b35',  // neon orange
+  '#ffe600',  // neon yellow
+  '#7c4dff',  // violet
+];
+
+const MIN_BRUSH    = 3;
+const MAX_BRUSH    = 50;
+const ERASER_RAD   = 55;   // eraser radius in px
+const PINCH_THRESH = 0.10; // normalized dist threshold for pinch
+const MAX_STROKES  = 50;   // max stored strokes before dropping oldest
+const ORB_SPEED    = 0.25; // how fast energy orbs travel along strokes
+
+// ═══════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════
+
+let activeColor  = '#00f5ff';
+let brushSize    = 10;
+let strokes      = [];          // completed strokes
+let liveStroke   = null;        // stroke being drawn now
+let gesture      = 'idle';
+let cursor       = { x: -200, y: -200 };
+let handVisible  = false;
+let animTime     = 0;
+let strokeIdSeq  = 0;
+let particles    = [];
+let fpsCount     = 0;
+let lastFpsTime  = Date.now();
+
+// ═══════════════════════════════════════════════════════════
+// CANVAS SETUP
+// ═══════════════════════════════════════════════════════════
+
+const canvas = document.getElementById('drawCanvas');
+const ctx    = canvas.getContext('2d');
+
+function resizeCanvas() {
+  const area = document.getElementById('canvas-area');
+  canvas.width  = area.clientWidth;
+  canvas.height = area.clientHeight;
+}
+
+resizeCanvas();
+window.addEventListener('resize', resizeCanvas);
+
+// ═══════════════════════════════════════════════════════════
+// COLOR SWATCHES UI
+// ═══════════════════════════════════════════════════════════
+
+const swatchGrid = document.getElementById('swatch-grid');
+
+PALETTE.forEach(hex => {
+  const sw = document.createElement('div');
+  sw.className = 'swatch' + (hex === activeColor ? ' active' : '');
+  sw.style.cssText = `background:${hex}; box-shadow: 0 0 10px ${hex}50;`;
+  sw.addEventListener('click', () => pickColor(hex, sw));
+  swatchGrid.appendChild(sw);
+});
+
+document.getElementById('custom-color').addEventListener('input', e => {
+  pickColor(e.target.value, null);
+});
+
+function pickColor(hex, swatchEl) {
+  activeColor = hex;
+  document.querySelectorAll('.swatch').forEach(s => s.classList.remove('active'));
+  if (swatchEl) swatchEl.classList.add('active');
+  refreshBrushPreview();
+}
+
+// ═══════════════════════════════════════════════════════════
+// BRUSH PREVIEW
+// ═══════════════════════════════════════════════════════════
+
+function refreshBrushPreview() {
+  const size = Math.max(6, Math.min(brushSize, 46));
+  const bc = document.getElementById('brush-circle');
+  bc.style.cssText = `
+    width: ${size}px; height: ${size}px;
+    background: ${activeColor};
+    box-shadow: 0 0 ${size * 1.5}px ${activeColor}70;
+    border-radius: 50%;
+    transition: width 0.15s, height 0.15s;
+  `;
+
+  const tip = document.getElementById('brush-tip');
+  tip.textContent = `Brush: ${Math.round(brushSize)}px`;
+  tip.style.opacity = '1';
+  clearTimeout(tip._t);
+  tip._t = setTimeout(() => tip.style.opacity = '0', 1600);
+}
+
+refreshBrushPreview();
+
+// ═══════════════════════════════════════════════════════════
+// GESTURE DETECTION
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Classifies the hand gesture from MediaPipe landmarks.
+ * Landmark key indices:
+ *  4 = thumb tip    8 = index tip   12 = middle tip
+ * 16 = ring tip    20 = pinky tip    6 = index PIP
+ * 10 = middle PIP  14 = ring PIP    18 = pinky PIP
+ */
+function classifyGesture(lm) {
+  const thumbTip  = lm[4];
+  const indexTip  = lm[8];
+  const middleTip = lm[12];
+  const ringTip   = lm[16];
+  const pinkyTip  = lm[20];
+
+  const indexPIP  = lm[6];
+  const middlePIP = lm[10];
+  const ringPIP   = lm[14];
+  const pinkyPIP  = lm[18];
+
+  // Finger "extended" = tip y is above (smaller) PIP y
+  const indexUp  = indexTip.y  < indexPIP.y  - 0.02;
+  const middleUp = middleTip.y < middlePIP.y - 0.02;
+  const ringUp   = ringTip.y   < ringPIP.y   - 0.02;
+  const pinkyUp  = pinkyTip.y  < pinkyPIP.y  - 0.02;
+
+  // Pinch distance (normalized 0–1)
+  const pinchDist = Math.hypot(thumbTip.x - indexTip.x, thumbTip.y - indexTip.y);
+
+  // Priority order matters:
+  if (pinchDist < PINCH_THRESH && !middleUp && !ringUp) {
+    return { type: 'pinch', dist: pinchDist };
+  }
+  if (indexUp && middleUp && ringUp && pinkyUp) {
+    return { type: 'erase' };
+  }
+  if (indexUp && !middleUp && !ringUp) {
+    return { type: 'draw' };
+  }
+  if (!indexUp && !middleUp && !ringUp && !pinkyUp) {
+    return { type: 'pause' };
+  }
+  return { type: 'idle' };
+}
+
+// ═══════════════════════════════════════════════════════════
+// PARTICLE SYSTEM
+// ═══════════════════════════════════════════════════════════
+
+function spawnParticles(x, y, color) {
+  const count = 4;
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = Math.random() * 2.5 + 0.5;
+    particles.push({
+      x, y,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 1,
+      decay: 0.85 + Math.random() * 0.08,
+      size: Math.random() * 2.5 + 0.8,
+      color,
+    });
+  }
+}
+
+function tickParticles() {
+  particles = particles.filter(p => p.life > 0.02);
+  for (const p of particles) {
+    p.x  += p.vx;
+    p.y  += p.vy;
+    p.vx *= 0.93;
+    p.vy *= 0.93;
+    p.life *= p.decay;
+
+    ctx.save();
+    ctx.globalAlpha = p.life * 0.9;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.shadowColor = p.color;
+    ctx.shadowBlur  = 8;
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// STROKE RENDERING  (the "alive" animation system)
+// ═══════════════════════════════════════════════════════════
+
+/**
+ * Renders a stroke with animated effects:
+ * - Pulsing neon glow (shadowBlur oscillates)
+ * - Bright fiber-optic core (white center line)
+ * - Traveling energy orb that loops along the stroke
+ */
+function renderStroke(stroke, t) {
+  const pts = stroke.points;
+  if (pts.length < 2) return;
+
+  // Phase offset per stroke so they don't all sync
+  const phase  = stroke.id * 1.61803; // golden ratio offset
+  const pulse  = 0.55 + 0.45 * Math.sin(t * 2.2 + phase);
+  const breathe = 0.88 + 0.12 * Math.sin(t * 1.5 + phase);
+
+  ctx.save();
+  ctx.lineCap  = 'round';
+  ctx.lineJoin = 'round';
+
+  // ── Layer 1: Wide outer glow ─────────────────────────
+  ctx.shadowColor = stroke.color;
+  ctx.shadowBlur  = 22 * pulse;
+  ctx.lineWidth   = stroke.width * breathe + 4;
+  ctx.strokeStyle = stroke.color + '55'; // ~33% alpha
+  drawSmooth(pts);
+  ctx.stroke();
+
+  // ── Layer 2: Core neon line ──────────────────────────
+  ctx.shadowBlur  = 10 * pulse;
+  ctx.lineWidth   = stroke.width * breathe;
+  ctx.strokeStyle = stroke.color;
+  drawSmooth(pts);
+  ctx.stroke();
+
+  // ── Layer 3: White fiber-optic center ────────────────
+  ctx.shadowBlur  = 4;
+  ctx.shadowColor = '#ffffff';
+  ctx.lineWidth   = Math.max(1, stroke.width * 0.28);
+  ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+  drawSmooth(pts);
+  ctx.stroke();
+
+  // ── Layer 4: Traveling energy orb ───────────────────
+  const orbT   = ((t * ORB_SPEED + stroke.id * 0.19) % 1 + 1) % 1;
+  const orbIdx = Math.floor(orbT * (pts.length - 1));
+  const orbPt  = pts[orbIdx];
+  if (orbPt) {
+    const orbR = stroke.width * 0.9;
+    ctx.beginPath();
+    ctx.arc(orbPt.x, orbPt.y, orbR, 0, Math.PI * 2);
+    ctx.fillStyle   = 'rgba(255,255,255,0.95)';
+    ctx.shadowColor = stroke.color;
+    ctx.shadowBlur  = 24;
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+/** Draws a smooth quadratic-bezier path through all points */
+function drawSmooth(pts) {
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pts[0].y);
+  for (let i = 1; i < pts.length - 1; i++) {
+    const mx = (pts[i].x + pts[i + 1].x) * 0.5;
+    const my = (pts[i].y + pts[i + 1].y) * 0.5;
+    ctx.quadraticCurveTo(pts[i].x, pts[i].y, mx, my);
+  }
+  const last = pts[pts.length - 1];
+  ctx.lineTo(last.x, last.y);
+}
+
+// ═══════════════════════════════════════════════════════════
+// CURSOR RENDERING
+// ═══════════════════════════════════════════════════════════
+
+function renderCursor(t) {
+  if (!handVisible) return;
+
+  const { x, y } = cursor;
+  const ping = 0.6 + 0.4 * Math.sin(t * 5);
+
+  ctx.save();
+
+  if (gesture === 'draw') {
+    // Ring cursor matching brush size
+    ctx.beginPath();
+    ctx.arc(x, y, brushSize / 2 + 5, 0, Math.PI * 2);
+    ctx.strokeStyle = activeColor;
+    ctx.shadowColor = activeColor;
+    ctx.shadowBlur  = 14 * ping;
+    ctx.lineWidth   = 1.5;
+    ctx.stroke();
+    // Center dot
+    ctx.beginPath();
+    ctx.arc(x, y, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle   = '#ffffff';
+    ctx.shadowBlur  = 8;
+    ctx.fill();
+
+  } else if (gesture === 'erase') {
+    // Dashed eraser circle
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath();
+    ctx.arc(x, y, ERASER_RAD, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(255, 80, 80, ${0.7 * ping})`;
+    ctx.lineWidth   = 1.5;
+    ctx.shadowColor = '#ff4040';
+    ctx.shadowBlur  = 10;
+    ctx.stroke();
+
+  } else if (gesture === 'pinch') {
+    // Cross-hair style resize indicator
+    const r = brushSize / 2 + 3;
+    ctx.strokeStyle = `rgba(255,200,50,${0.8 * ping})`;
+    ctx.shadowColor = '#ffcc00';
+    ctx.shadowBlur  = 12 * ping;
+    ctx.lineWidth   = 1.5;
+    [0, Math.PI / 2, Math.PI, Math.PI * 1.5].forEach(a => {
+      ctx.beginPath();
+      ctx.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r);
+      ctx.lineTo(x + Math.cos(a) * (r + 10), y + Math.sin(a) * (r + 10));
+      ctx.stroke();
+    });
+
+  } else {
+    // Neutral small dot
+    ctx.beginPath();
+    ctx.arc(x, y, 5, 0, Math.PI * 2);
+    ctx.strokeStyle = `rgba(150,150,200,${0.4 * ping})`;
+    ctx.lineWidth   = 1;
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+// ═══════════════════════════════════════════════════════════
+// DRAWING ACTIONS
+// ═══════════════════════════════════════════════════════════
+
+function beginStroke(x, y) {
+  liveStroke = {
+    id: strokeIdSeq++,
+    points: [{ x, y }],
+    color: activeColor,
+    width: brushSize,
+  };
+}
+
+function extendStroke(x, y) {
+  if (!liveStroke) return;
+  const last = liveStroke.points[liveStroke.points.length - 1];
+  if (Math.hypot(x - last.x, y - last.y) > 3) {
+    liveStroke.points.push({ x, y });
+    spawnParticles(x, y, activeColor);
+  }
+}
+
+function commitStroke() {
+  if (liveStroke && liveStroke.points.length >= 2) {
+    // Trim oldest stroke if over cap
+    if (strokes.length >= MAX_STROKES) strokes.shift();
+    strokes.push(liveStroke);
+  }
+  liveStroke = null;
+}
+
+function eraseAt(x, y) {
+  // Split strokes at erased points, keeping valid sub-segments
+  const next = [];
+  for (const s of strokes) {
+    let group = [];
+    for (const p of s.points) {
+      if (Math.hypot(p.x - x, p.y - y) < ERASER_RAD) {
+        if (group.length >= 2) next.push({ ...s, id: strokeIdSeq++, points: group });
+        group = [];
+      } else {
+        group.push(p);
+      }
+    }
+    if (group.length >= 2) next.push({ ...s, id: strokeIdSeq++, points: group });
+  }
+  strokes = next;
+}
+
+function undoStroke() {
+  if (strokes.length > 0) {
+    strokes.pop();
+    flash('↩ UNDO');
+  }
+}
+
+function clearAll() {
+  strokes   = [];
+  liveStroke = null;
+  particles = [];
+  flash('⊘ CLEARED');
+}
+
+function saveImage() {
+  // Render one more clean frame, then export
+  const link = document.createElement('a');
+  link.download = `airdraw-${Date.now()}.png`;
+  link.href     = canvas.toDataURL('image/png');
+  link.click();
+  flash('↓ SAVED');
+}
+
+function flash(msg) {
+  const el = document.getElementById('flash');
+  el.textContent   = msg;
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.style.opacity = '0', 1400);
+}
+
+// ═══════════════════════════════════════════════════════════
+// GESTURE HUD
+// ═══════════════════════════════════════════════════════════
+
+const GESTURE_MAP = {
+  draw:  { id: 'g-draw',  label: '☝ DRAWING',  color: 'var(--cyan)' },
+  erase: { id: 'g-erase', label: '🖐 ERASING',  color: '#ff5555' },
+  pause: { id: 'g-pause', label: '✊ PAUSED',   color: '#555' },
+  pinch: { id: 'g-pinch', label: '🤏 RESIZE',   color: '#ffcc00' },
+  idle:  { id: null,      label: '·  ·  ·',     color: '#2a2a55' },
+};
+
+function updateHUD(g) {
+  document.querySelectorAll('.g-row').forEach(el => el.classList.remove('active'));
+  const info = GESTURE_MAP[g] || GESTURE_MAP.idle;
+  if (info.id) document.getElementById(info.id)?.classList.add('active');
+
+  const badge = document.getElementById('gesture-badge');
+  badge.textContent = info.label;
+  badge.style.color = info.color;
+}
+
+// ═══════════════════════════════════════════════════════════
+// MAIN ANIMATION LOOP
+// ═══════════════════════════════════════════════════════════
+
+function loop() {
+  requestAnimationFrame(loop);
+  animTime += 0.016;
+
+  // FPS counter
+  fpsCount++;
+  const now = Date.now();
+  if (now - lastFpsTime >= 1000) {
+    document.getElementById('fps').textContent = fpsCount + ' fps';
+    fpsCount    = 0;
+    lastFpsTime = now;
+  }
+
+  // ── Clear to deep void background ────────────────────
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = '#06060f';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // ── Subtle dot grid ───────────────────────────────────
+  drawGrid();
+
+  // ── Render all completed strokes with animation ───────
+  for (const s of strokes) renderStroke(s, animTime);
+
+  // ── Render active (live) stroke ───────────────────────
+  if (liveStroke) renderStroke(liveStroke, animTime);
+
+  // ── Particles ─────────────────────────────────────────
+  tickParticles();
+
+  // ── Cursor ────────────────────────────────────────────
+  renderCursor(animTime);
+
+  // Keep brush preview color in sync
+  document.getElementById('brush-circle').style.background = activeColor;
+  document.getElementById('brush-circle').style.boxShadow  =
+    `0 0 ${brushSize}px ${activeColor}60`;
+}
+
+/** Subtle dot grid on the canvas background */
+function drawGrid() {
+  const spacing = 35;
+  const r       = 1.2;
+  ctx.fillStyle = 'rgba(30,30,60,0.35)';
+  for (let gx = spacing; gx < canvas.width; gx += spacing) {
+    for (let gy = spacing; gy < canvas.height; gy += spacing) {
+      ctx.beginPath();
+      ctx.arc(gx, gy, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+}
+
+loop();
+
+// ═══════════════════════════════════════════════════════════
+// KEYBOARD SHORTCUTS
+// ═══════════════════════════════════════════════════════════
+
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undoStroke(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveImage();  }
+  if (e.key === 'Escape') clearAll();
+});
+
+// ═══════════════════════════════════════════════════════════
+// MEDIAPIPE HANDS
+// ═══════════════════════════════════════════════════════════
+
+const video = document.getElementById('video');
+
+const hands = new Hands({
+  locateFile: f =>
+    `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/${f}`
+});
+
+hands.setOptions({
+  maxNumHands:            1,
+  modelComplexity:        1,
+  minDetectionConfidence: 0.75,
+  minTrackingConfidence:  0.60,
+});
+
+hands.onResults(results => {
+  // First successful result → hide loading screen
+  const loadEl = document.getElementById('loading');
+  if (loadEl.style.display !== 'none') {
+    loadEl.style.opacity = '0';
+    setTimeout(() => loadEl.style.display = 'none', 600);
+  }
+
+  if (!results.multiHandLandmarks?.length) {
+    handVisible = false;
+    gesture     = 'idle';
+    updateHUD('idle');
+    if (liveStroke) commitStroke();
+    return;
+  }
+
+  handVisible = true;
+  const lm  = results.multiHandLandmarks[0];
+  const det = classifyGesture(lm);
+  gesture   = det.type;
+  updateHUD(gesture);
+
+  // Map index-finger tip to canvas coords (mirror X because video is mirrored)
+  const tip = lm[8];
+  cursor = {
+    x: (1 - tip.x) * canvas.width,
+    y: tip.y       * canvas.height,
+  };
+
+  // ── Act on gesture ─────────────────────────────────
+  if (gesture === 'draw') {
+    if (!liveStroke) beginStroke(cursor.x, cursor.y);
+    else extendStroke(cursor.x, cursor.y);
+
+  } else {
+    if (liveStroke) commitStroke();
+  }
+
+  if (gesture === 'erase') {
+    eraseAt(cursor.x, cursor.y);
+  }
+
+  if (gesture === 'pinch') {
+    // Map pinch distance [0 → PINCH_THRESH] to brush size [MIN → MAX]
+    const t  = Math.max(0, Math.min(1, det.dist / PINCH_THRESH));
+    brushSize = MIN_BRUSH + t * (MAX_BRUSH - MIN_BRUSH);
+    refreshBrushPreview();
+  }
+});
+
+// Start webcam
+const camera = new Camera(video, {
+  onFrame: async () => { await hands.send({ image: video }); },
+  width: 320,
+  height: 240,
+});
+
+camera.start().catch(err => {
+  document.getElementById('loading').innerHTML = `
+    <h1 style="color:#ff5555">CAM ERROR</h1>
+    <p style="color:#ff5555; opacity:0.7;">Could not access webcam.<br>
+    Allow camera permissions and reload.</p>
+  `;
+});
+</script>
+</body>
+</html>
