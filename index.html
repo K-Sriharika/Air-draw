@@ -205,13 +205,6 @@ function renderStroke(s) {
   ctx.shadowBlur = 0; ctx.strokeStyle = 'rgba(255,255,255,0.7)';
   ctx.lineWidth = Math.max(1, s.width * 0.2); ctx.stroke();
 
-  // Traveling orb
-  const orbT = ((animTime * 0.3 + (s.id || 0) * 0.2) % 1 + 1) % 1;
-  const op = s.points[Math.floor(orbT * (s.points.length - 1))];
-  if (op) {
-    ctx.beginPath(); ctx.arc(op.x, op.y, s.width * 0.8, 0, Math.PI * 2);
-    ctx.fillStyle = 'rgba(255,255,255,0.95)'; ctx.shadowColor = s.color; ctx.shadowBlur = 20; ctx.fill();
-  }
   ctx.restore();
 }
 
