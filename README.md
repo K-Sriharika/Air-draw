@@ -51,9 +51,7 @@ Air Draw uses your webcam and **MediaPipe Hands** to track your hand in real-tim
 
 ## 🚀 Live Demo
 
-👉 **[air-draw.yourusername.github.io](https://yourusername.github.io/air-draw)**  
-*(Replace with your GitHub Pages URL after deploying)*
-
+👉 **[Air-Draw.K-Sriharika.github.io](https://k-sriharika.github.io/Air-draw/)**  
 ---
 
 ## 🛠 Run Locally
