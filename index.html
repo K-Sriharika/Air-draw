@@ -3,482 +3,430 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Air Draw Pro — Kinetic Canvas</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<title>Air Draw — Gesture Canvas v2</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
-:root {
-  --bg: #030305;
-  --panel: rgba(15, 15, 25, 0.7);
-  --accent: #00f5ff;
-  --accent-glow: rgba(0, 245, 255, 0.4);
-  --text: #e0e0ff;
-  --border: rgba(255, 255, 255, 0.1);
-  --font-main: 'Outfit', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+:root{
+  --bg:#ffffff;--panel:rgba(10,10,20,0.96);--accent:#00f5ff;
+  --border:rgba(255,255,255,0.08);
+  --font:'Outfit',sans-serif;--mono:'JetBrains Mono',monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{background:var(--bg);font-family:var(--font);overflow:hidden;height:100vh;display:flex;}
+#canvas-area{flex:1;position:relative;}
+canvas{display:block;width:100%;height:100%;}
+
+/* ── Sidebar ── */
+#sidebar{
+  width:240px;background:var(--panel);
+  border-left:1px solid var(--border);
+  display:flex;flex-direction:column;
+  z-index:100;overflow-y:auto;overflow-x:hidden;
+}
+#sidebar::-webkit-scrollbar{width:2px;}
+#sidebar::-webkit-scrollbar-thumb{background:#1a1a3a;}
+
+/* sticky logo */
+#logo-bar{
+  padding:18px 18px 14px;border-bottom:1px solid var(--border);
+  position:sticky;top:0;background:rgba(10,10,20,0.98);z-index:10;
+}
+#logo-bar h1{
+  font-size:15px;letter-spacing:3px;font-weight:600;
+  background:linear-gradient(90deg,#fff,var(--accent));
+  -webkit-background-clip:text;-webkit-text-fill-color:transparent;
+}
+#hand-status{
+  display:inline-block;margin-top:6px;
+  font-family:var(--mono);font-size:9px;padding:3px 8px;
+  background:rgba(0,245,255,0.08);color:var(--accent);border-radius:4px;
 }
 
-*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+.sec{padding:14px 18px;border-bottom:1px solid var(--border);}
+.lbl{font-family:var(--mono);font-size:8px;letter-spacing:0.22em;text-transform:uppercase;color:rgba(255,255,255,0.28);margin-bottom:10px;}
 
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: var(--font-main);
-  overflow: hidden;
-  height: 100vh;
-  display: flex;
+/* buttons */
+.btn{
+  width:100%;background:rgba(255,255,255,0.04);border:1px solid var(--border);
+  padding:9px 12px;border-radius:7px;color:#dde;cursor:pointer;
+  display:flex;justify-content:space-between;align-items:center;
+  font-size:12px;font-family:var(--font);margin-bottom:6px;transition:all .2s;
 }
+.btn:last-child{margin-bottom:0;}
+.btn:hover{background:rgba(255,255,255,0.07);}
+.btn.on{background:rgba(0,245,255,0.1);border-color:var(--accent);color:var(--accent);}
+.dot{width:7px;height:7px;border-radius:50%;background:#1a1a3a;flex-shrink:0;transition:background .2s,box-shadow .2s;}
+.btn.on .dot{background:var(--accent);box-shadow:0 0 8px var(--accent);}
 
-#canvas-area {
-  flex: 1;
-  position: relative;
-  background: radial-gradient(circle at center, #0a0a1a 0%, #030305 100%);
+/* swatches */
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px;}
+.sw{aspect-ratio:1;border-radius:6px;cursor:pointer;border:2px solid rgba(255,255,255,0.08);transition:transform .15s,border-color .15s;}
+.sw:hover{transform:scale(1.1);}
+.sw.on{border-color:#fff;transform:scale(1.1);}
+input[type=color]{width:100%;height:28px;border:1px solid var(--border);border-radius:6px;background:none;cursor:pointer;padding:2px;}
+
+/* brush slider */
+input[type=range]{
+  width:100%;accent-color:var(--accent);
+  height:4px;border-radius:2px;cursor:pointer;
 }
+#brush-val{font-family:var(--mono);font-size:10px;color:rgba(255,255,255,0.4);text-align:right;margin-top:4px;}
 
-canvas { display: block; width: 100%; height: 100%; }
+/* gesture rows */
+.gr{display:flex;align-items:center;gap:8px;padding:4px 6px;border-radius:6px;margin-bottom:3px;font-size:11px;color:rgba(255,255,255,0.55);transition:background .2s,color .2s;}
+.gr span{font-size:15px;width:20px;}
+.gr.on{background:rgba(0,245,255,0.08);color:var(--accent);}
 
-/* ——— HUD / INTERFACE ——— */
-#sidebar {
-  width: 280px;
-  background: var(--panel);
-  backdrop-filter: blur(12px);
-  border-left: 1px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  padding: 24px;
-  gap: 20px;
-  z-index: 100;
-  box-shadow: -10px 0 30px rgba(0,0,0,0.5);
-}
+/* webcam */
+#cam-wrap{position:absolute;bottom:18px;left:18px;width:140px;border-radius:10px;overflow:hidden;border:1px solid rgba(255,255,255,0.12);box-shadow:0 0 14px rgba(0,245,255,0.08);}
+#video{width:100%;display:block;transform:scaleX(-1);}
 
-.logo-area {
-  padding-bottom: 20px;
-  border-bottom: 1px solid var(--border);
-}
+/* loading */
+#loading{position:absolute;inset:0;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1000;transition:opacity .5s;}
+#loading h2{font-family:var(--mono);font-size:16px;letter-spacing:.2em;color:#111;margin-bottom:18px;}
+.spin{width:34px;height:34px;border:3px solid #ddd;border-top-color:#00c4cc;border-radius:50%;animation:spin 1s linear infinite;}
+.sub{margin-top:12px;font-family:var(--mono);font-size:9px;color:#aaa;letter-spacing:.15em;}
+@keyframes spin{to{transform:rotate(360deg);}}
 
-.logo-area h1 {
-  font-size: 22px;
-  letter-spacing: 2px;
-  background: linear-gradient(90deg, #fff, var(--accent));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  font-weight: 600;
-}
-
-.status-tag {
-  display: inline-block;
-  font-family: var(--font-mono);
-  font-size: 10px;
-  padding: 4px 8px;
-  background: rgba(0, 245, 255, 0.1);
-  color: var(--accent);
-  border-radius: 4px;
-  margin-top: 8px;
-}
-
-.section-label {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  text-transform: uppercase;
-  color: rgba(255,255,255,0.4);
-  margin-bottom: 12px;
-}
-
-/* Controls */
-.control-group {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.toggle-btn {
-  background: rgba(255,255,255,0.05);
-  border: 1px solid var(--border);
-  padding: 12px;
-  border-radius: 10px;
-  color: #fff;
-  cursor: pointer;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  transition: all 0.2s;
-  font-size: 13px;
-}
-
-.toggle-btn.active {
-  background: rgba(0, 245, 255, 0.15);
-  border-color: var(--accent);
-}
-
-.toggle-btn .indicator {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #333;
-}
-
-.toggle-btn.active .indicator {
-  background: var(--accent);
-  box-shadow: 0 0 10px var(--accent);
-}
-
-/* Color Grid */
-.color-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
-}
-
-.color-dot {
-  aspect-ratio: 1;
-  border-radius: 8px;
-  cursor: pointer;
-  border: 2px solid transparent;
-}
-
-.color-dot.active { border-color: #fff; transform: scale(1.1); }
-
-/* Instructions */
-#instructions {
-  background: rgba(0,0,0,0.2);
-  padding: 15px;
-  border-radius: 12px;
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-.gesture-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
-}
-
-.gesture-item span:first-child {
-  font-size: 18px;
-  width: 24px;
-}
-
-/* Webcam Preview */
-#cam-wrap {
-  position: absolute;
-  bottom: 24px;
-  left: 24px;
-  width: 160px;
-  border-radius: 12px;
-  overflow: hidden;
-  border: 1px solid var(--border);
-  transform: scaleX(-1);
-}
-
-#video { width: 100%; display: block; }
-
-#loading {
-  position: absolute;
-  inset: 0;
-  background: var(--bg);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.spinner {
-  width: 40px; height: 40px;
-  border: 3px solid var(--border);
-  border-top-color: var(--accent);
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
-@keyframes spin { to { transform: rotate(360deg); } }
+.footer{padding:14px 18px;font-family:var(--mono);font-size:8px;color:rgba(255,255,255,0.18);line-height:2.2;}
 </style>
 </head>
 <body>
 
+<!-- Loading -->
 <div id="loading">
-  <div class="spinner"></div>
-  <p style="margin-top:20px; font-family:var(--font-mono); font-size:12px;">INITIALIZING CORE...</p>
+  <h2>AIR DRAW v2</h2>
+  <div class="spin"></div>
+  <p class="sub">LOADING HAND TRACKING...</p>
 </div>
 
+<!-- Canvas -->
 <div id="canvas-area">
   <canvas id="drawCanvas"></canvas>
-  
-  <div id="cam-wrap">
-    <video id="video" playsinline muted></video>
-  </div>
+  <div id="cam-wrap"><video id="video" playsinline muted></video></div>
 </div>
 
+<!-- Sidebar -->
 <div id="sidebar">
-  <div class="logo-area">
-    <h1>AIR DRAW PRO</h1>
-    <div id="hand-status" class="status-tag">SCANNING...</div>
+
+  <div id="logo-bar">
+    <h1>AIR DRAW v2</h1>
+    <div id="hand-status">SCANNING...</div>
   </div>
 
-  <div class="section">
-    <div class="section-label">Engine Controls</div>
-    <div class="control-group">
-      <button class="toggle-btn" id="gravity-toggle" onclick="toggleGravity()">
-        Gravity Physics <div class="indicator"></div>
-      </button>
-      <button class="toggle-btn" id="rainbow-toggle" onclick="toggleRainbow()">
-        Rainbow Mode <div class="indicator"></div>
-      </button>
-      <button class="toggle-btn" onclick="clearAll()">
-        Clear Canvas <span>⊘</span>
-      </button>
-    </div>
+  <!-- ① GRAVITY — top, always visible -->
+  <div class="sec">
+    <div class="lbl">Physics</div>
+    <button class="btn" id="grav-btn" onclick="toggleGravity()">
+      Gravity Mode <div class="dot"></div>
+    </button>
+    <button class="btn" id="rain-btn" onclick="toggleRainbow()">
+      Rainbow Mode <div class="dot"></div>
+    </button>
   </div>
 
-  <div class="section">
-    <div class="section-label">Active Pigment</div>
-    <div class="color-grid" id="color-grid"></div>
+  <!-- ② ACTIONS -->
+  <div class="sec">
+    <div class="lbl">Actions</div>
+    <button class="btn" onclick="undoStroke()">Undo <span>↩</span></button>
+    <button class="btn" onclick="clearAll()">Clear <span>⊘</span></button>
+    <button class="btn" onclick="saveImage()">Save PNG <span>↓</span></button>
   </div>
 
-  <div class="section">
-    <div class="section-label">How to Control</div>
-    <div id="instructions">
-      <div class="gesture-item"><span>☝️</span> <div><b>Index Up</b><br>Paint Neon line</div></div>
-      <div class="gesture-item"><span>🖐️</span> <div><b>Palm Open</b><br>Erase strokes</div></div>
-      <div class="gesture-item"><span>🤏</span> <div><b>Pinch</b><br>Change brush size</div></div>
-      <div class="gesture-item"><span>✊</span> <div><b>Fist</b><br>Pause tracking</div></div>
-    </div>
+  <!-- ③ BRUSH SIZE — slider, no pinch -->
+  <div class="sec">
+    <div class="lbl">Brush Size</div>
+    <input type="range" id="brush-slider" min="2" max="50" value="12"
+      oninput="brushSize=+this.value; document.getElementById('brush-val').textContent=brushSize+'px'">
+    <div id="brush-val">12px</div>
   </div>
 
-  <div style="margin-top: auto; font-family: var(--font-mono); font-size: 10px; opacity: 0.3;">
-    PRECISION: LERP FILTER V2<br>
-    PHYSICS: 9.8m/s² SIMULATED
+  <!-- ④ BACKGROUND -->
+  <div class="sec">
+    <div class="lbl">Background</div>
+    <div class="grid" id="bg-grid"></div>
+    <input type="color" id="custom-bg" value="#ffffff">
+  </div>
+
+  <!-- ⑤ COLOR -->
+  <div class="sec">
+    <div class="lbl">Brush Color</div>
+    <div class="grid" id="color-grid"></div>
+    <input type="color" id="custom-color" value="#00f5ff">
+  </div>
+
+  <!-- ⑥ GESTURE GUIDE -->
+  <div class="sec">
+    <div class="lbl">Gestures</div>
+    <div class="gr" id="g-draw"><span>☝️</span> Index up — Draw</div>
+    <div class="gr" id="g-erase"><span>🖐️</span> Palm — Erase</div>
+    <div class="gr" id="g-pause"><span>✊</span> Fist — Pause</div>
+  </div>
+
+  <div class="footer">
+    G = gravity &nbsp; R = rainbow<br>
+    Ctrl+Z = undo &nbsp; Esc = clear<br>
+    Ctrl+S = save PNG
   </div>
 </div>
 
-<!-- MediaPipe -->
 <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/hands.js"></script>
-
 <script>
-// ——— CONFIG & STATE ———
+// ── CONFIG ───────────────────────────────────────
+const COLORS = ['#00f5ff','#ff00ff','#39ff14','#ffff00','#ff6b35','#ff3860','#111111','#7c4dff'];
+const BG_PRESETS = ['#ffffff','#111111','#030305','#0d1117','#1a0a2e','#0a1628','#1a1008','#2d1b00'];
+const MIN_DIST   = 8;   // px — minimum movement before adding a point (kills dot circles)
+const MIN_PTS    = 4;   // minimum points before a stroke is rendered or committed
+const LERP       = 0.15; // smoothing factor (lower = smoother)
+
+// ── STATE ────────────────────────────────────────
 const canvas = document.getElementById('drawCanvas');
-const ctx = canvas.getContext('2d');
-const COLORS = ['#00f5ff', '#ff00ff', '#39ff14', '#ffff00', '#ff6b35', '#ffffff'];
+const ctx    = canvas.getContext('2d');
 
-let strokes = [];
-let currentStroke = null;
-let activeColor = COLORS[0];
-let brushSize = 10;
-let gravityActive = false;
-let rainbowActive = false;
-let hue = 0;
+let strokes = [], currentStroke = null;
+let activeColor = '#00f5ff', bgColor = '#ffffff';
+let brushSize = 12;
+let gravityOn = false, rainbowOn = false;
+let hue = 0, t = 0, idSeq = 0;
+let rawX = 0, rawY = 0, smoothX = 0, smoothY = 0;
 
-// Smoothing (Precision) logic
-let rawCursor = { x: 0, y: 0 };
-let smoothCursor = { x: 0, y: 0 };
-const LERP_FACTOR = 0.35; // Lower = smoother but more lag
+// ── CANVAS RESIZE ─────────────────────────────────
+function resize(){ canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight; }
+resize();
+window.addEventListener('resize', resize);
 
-// ——— INIT ———
-function init() {
-  resize();
-  window.addEventListener('resize', resize);
-  
-  const grid = document.getElementById('color-grid');
-  COLORS.forEach(c => {
+// ── SWATCHES ─────────────────────────────────────
+function buildGrid(id, palette, getVal, setVal, inputId){
+  const g = document.getElementById(id);
+  palette.forEach(hex => {
     const d = document.createElement('div');
-    d.className = 'color-dot' + (c === activeColor ? ' active' : '');
-    d.style.background = c;
+    d.className = 'sw' + (hex===getVal() ? ' on' : '');
+    d.style.cssText = `background:${hex};box-shadow:inset 0 0 0 1px rgba(255,255,255,0.06);`;
+    d.title = hex;
     d.onclick = () => {
-      activeColor = c;
-      document.querySelectorAll('.color-dot').forEach(el => el.classList.remove('active'));
-      d.classList.add('active');
+      setVal(hex);
+      if(inputId) document.getElementById(inputId).value = hex;
+      g.querySelectorAll('.sw').forEach(e => e.classList.remove('on'));
+      d.classList.add('on');
     };
-    grid.appendChild(d);
+    g.appendChild(d);
   });
-}
-
-function resize() {
-  canvas.width = canvas.offsetWidth;
-  canvas.height = canvas.offsetHeight;
-}
-
-// ——— PHYSICS & LOGIC ———
-function toggleGravity() {
-  gravityActive = !gravityActive;
-  document.getElementById('gravity-toggle').classList.toggle('active');
-}
-
-function toggleRainbow() {
-  rainbowActive = !rainbowActive;
-  document.getElementById('rainbow-toggle').classList.toggle('active');
-}
-
-function clearAll() {
-  strokes = [];
-}
-
-function updatePhysics() {
-  if (!gravityActive) return;
-  
-  const gravity = 0.5;
-  const friction = 0.98;
-  const bounce = -0.6;
-
-  strokes.forEach(s => {
-    // Only apply physics if stroke isn't being drawn
-    if (s.isFalling === false) s.isFalling = true;
-    
-    s.vy = (s.vy || 0) + gravity;
-    s.vx = (s.vx || 0);
-
-    let lowestY = -Infinity;
-    s.points.forEach(p => {
-      p.y += s.vy;
-      p.x += s.vx;
-      if (p.y > lowestY) lowestY = p.y;
+  if(inputId){
+    document.getElementById(inputId).addEventListener('input', e => {
+      setVal(e.target.value);
+      g.querySelectorAll('.sw').forEach(el => el.classList.remove('on'));
     });
+  }
+}
+buildGrid('bg-grid',    BG_PRESETS, ()=>bgColor,    v=>bgColor=v,    'custom-bg');
+buildGrid('color-grid', COLORS,     ()=>activeColor, v=>activeColor=v,'custom-color');
 
-    // Floor collision
-    if (lowestY > canvas.height) {
-      const diff = lowestY - canvas.height;
-      s.points.forEach(p => p.y -= diff);
-      s.vy *= bounce;
-      s.vx *= friction;
+// ── CONTROLS ─────────────────────────────────────
+function toggleGravity(){
+  gravityOn = !gravityOn;
+  document.getElementById('grav-btn').classList.toggle('on');
+}
+function toggleRainbow(){
+  rainbowOn = !rainbowOn;
+  document.getElementById('rain-btn').classList.toggle('on');
+}
+function undoStroke(){ if(strokes.length) strokes.pop(); }
+function clearAll()  { strokes=[]; currentStroke=null; }
+function saveImage() {
+  // Render current frame without the cam overlay, then download
+  const a = document.createElement('a');
+  a.download = `airdraw-${Date.now()}.png`;
+  a.href = canvas.toDataURL('image/png');
+  a.click();
+}
+
+// ── PHYSICS ───────────────────────────────────────
+function physics(){
+  if(!gravityOn) return;
+  strokes.forEach(s=>{
+    s.vy = (s.vy||0) + 0.45;
+    s.vx = (s.vx||0) * 0.96;
+    let maxY = -Infinity;
+    s.points.forEach(p=>{ p.y+=s.vy; p.x+=s.vx; if(p.y>maxY) maxY=p.y; });
+    if(maxY > canvas.height){
+      const diff = maxY - canvas.height;
+      s.points.forEach(p=> p.y -= diff);
+      s.vy *= -0.5;
+      if(Math.abs(s.vy)<0.4) s.vy=0;
     }
   });
 }
 
-// ——— RENDERING ———
-function draw() {
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-  
-  // Update Lerp Smoothing
-  smoothCursor.x += (rawCursor.x - smoothCursor.x) * LERP_FACTOR;
-  smoothCursor.y += (rawCursor.y - smoothCursor.y) * LERP_FACTOR;
+// ── RENDER STROKE — no circles ────────────────────
+function renderStroke(s){
+  // Don't render strokes with too few points — prevents dot blobs
+  if(s.points.length < MIN_PTS) return;
 
-  updatePhysics();
+  const pulse = 0.72 + 0.28 * Math.sin(t*1.9 + (s.id||0)*1.7);
 
-  const allStrokes = [...strokes];
-  if (currentStroke) allStrokes.push(currentStroke);
+  ctx.save();
+  ctx.lineCap='round'; ctx.lineJoin='round';
 
-  allStrokes.forEach(s => {
-    if (s.points.length < 2) return;
-    
-    ctx.beginPath();
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    
-    // Neon Glow Effect
-    ctx.shadowBlur = 15;
-    ctx.shadowColor = s.color;
-    ctx.strokeStyle = s.color;
-    ctx.lineWidth = s.width;
+  // Build smooth path
+  const path = new Path2D();
+  path.moveTo(s.points[0].x, s.points[0].y);
+  for(let i=1; i<s.points.length-1; i++){
+    const mx = (s.points[i].x + s.points[i+1].x)/2;
+    const my = (s.points[i].y + s.points[i+1].y)/2;
+    path.quadraticCurveTo(s.points[i].x, s.points[i].y, mx, my);
+  }
+  const L = s.points[s.points.length-1];
+  path.lineTo(L.x, L.y);
 
-    ctx.moveTo(s.points[0].x, s.points[0].y);
-    for (let i = 1; i < s.points.length; i++) {
-      ctx.lineTo(s.points[i].x, s.points[i].y);
-    }
-    ctx.stroke();
-    
-    // Core White line for "Cyber" look
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
-    ctx.lineWidth = s.width * 0.2;
-    ctx.stroke();
-  });
+  // Outer glow
+  ctx.shadowColor = s.color; ctx.shadowBlur = 18*pulse;
+  ctx.strokeStyle = s.color; ctx.lineWidth = s.width;
+  ctx.stroke(path);
 
-  if (rainbowActive) hue = (hue + 2) % 360;
-  
-  requestAnimationFrame(draw);
+  // Thin white core — uses same path, no arcs, no circles
+  ctx.shadowBlur=3; ctx.shadowColor='#fff';
+  ctx.strokeStyle='rgba(255,255,255,0.55)';
+  ctx.lineWidth = Math.max(0.6, s.width*0.12);
+  ctx.stroke(path);
+
+  ctx.restore();
 }
 
-// ——— MEDIAPIPE LOGIC ———
+// ── ANIMATION LOOP ────────────────────────────────
+function loop(){
+  requestAnimationFrame(loop);
+  t += 0.016;
+
+  smoothX += (rawX-smoothX)*LERP;
+  smoothY += (rawY-smoothY)*LERP;
+
+  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle = bgColor;
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+
+  physics();
+  strokes.forEach(renderStroke);
+  if(currentStroke) renderStroke(currentStroke);
+}
+loop();
+
+// ── GESTURE HUD ───────────────────────────────────
+function setActive(id){
+  ['g-draw','g-erase','g-pause'].forEach(g=>
+    document.getElementById(g)?.classList.remove('on')
+  );
+  if(id) document.getElementById(id)?.classList.add('on');
+}
+
+// ── MEDIAPIPE ────────────────────────────────────
 const hands = new Hands({
-  locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+  locateFile: f=>`https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/${f}`
 });
-
 hands.setOptions({
-  maxNumHands: 1,
-  modelComplexity: 1,
-  minDetectionConfidence: 0.7,
-  minTrackingConfidence: 0.7
+  maxNumHands:1, modelComplexity:0,
+  minDetectionConfidence:0.55, minTrackingConfidence:0.45
 });
 
-hands.onResults(results => {
-  document.getElementById('loading').style.display = 'none';
+hands.onResults(res=>{
+  // Hide loading screen
+  const ld = document.getElementById('loading');
+  if(ld && ld.style.display!=='none'){
+    ld.style.opacity='0';
+    setTimeout(()=>ld.style.display='none',500);
+  }
+
   const status = document.getElementById('hand-status');
 
-  if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
-    status.innerText = "NO HAND DETECTED";
-    status.style.color = "rgba(255,255,255,0.3)";
-    if (currentStroke) {
-      strokes.push(currentStroke);
+  if(!res.multiHandLandmarks?.length){
+    status.textContent = 'SHOW HAND TO CAMERA';
+    status.style.color = 'rgba(255,255,255,0.25)';
+    setActive(null);
+    // Commit stroke only if it has enough points
+    if(currentStroke){
+      if(currentStroke.points.length >= MIN_PTS) strokes.push(currentStroke);
       currentStroke = null;
     }
     return;
   }
 
-  status.innerText = "TRACKING ACTIVE";
-  status.style.color = var(--accent);
-  
-  const landmarks = results.multiHandLandmarks[0];
-  
-  // Coordinates (Mirrored)
-  rawCursor.x = (1 - landmarks[8].x) * canvas.width;
-  rawCursor.y = landmarks[8].y * canvas.height;
+  const lm = res.multiHandLandmarks[0];
+  rawX = (1-lm[8].x)*canvas.width;
+  rawY = lm[8].y*canvas.height;
 
-  // Gesture Recognition
-  const isIndexUp = landmarks[8].y < landmarks[6].y;
-  const isMiddleUp = landmarks[12].y < landmarks[10].y;
-  const isRingUp = landmarks[16].y < landmarks[14].y;
-  const isPalm = isIndexUp && isMiddleUp && isRingUp;
-  
-  const pinchDist = Math.hypot(landmarks[8].x - landmarks[4].x, landmarks[8].y - landmarks[4].y);
+  const iUp = lm[8].y  < lm[6].y;   // index
+  const mUp = lm[12].y < lm[10].y;  // middle
+  const rUp = lm[16].y < lm[14].y;  // ring
+  const pUp = lm[20].y < lm[18].y;  // pinky
 
-  if (isPalm) {
-    // Erase logic
-    status.innerText = "MODE: ERASER";
-    strokes = strokes.filter(s => {
-      return !s.points.some(p => Math.hypot(p.x - smoothCursor.x, p.y - smoothCursor.y) < 40);
-    });
-  } else if (pinchDist < 0.05) {
-    // Resize logic
-    status.innerText = "MODE: RESIZING";
-    brushSize = 5 + (pinchDist * 500);
-  } else if (isIndexUp && !isMiddleUp) {
-    // Draw logic
-    status.innerText = "MODE: PAINTING";
-    const col = rainbowActive ? `hsl(${hue}, 100%, 60%)` : activeColor;
-    
-    if (!currentStroke) {
-      currentStroke = { 
-        points: [], 
-        color: col, 
-        width: brushSize,
-        vy: 0, vx: 0, isFalling: false 
-      };
+  // ── ERASE: all 4 fingers up ─────────────────
+  if(iUp && mUp && rUp && pUp){
+    status.textContent='ERASE 🖐️'; status.style.color='#ff5555';
+    setActive('g-erase');
+    if(currentStroke){ if(currentStroke.points.length>=MIN_PTS) strokes.push(currentStroke); currentStroke=null; }
+    strokes = strokes.filter(s => !s.points.some(p=>Math.hypot(p.x-smoothX,p.y-smoothY)<50));
+
+  // ── DRAW: only index up ──────────────────────
+  } else if(iUp && !mUp){
+    status.textContent='PAINTING ☝️'; status.style.color='#00f5ff';
+    setActive('g-draw');
+    const col = rainbowOn ? `hsl(${hue},100%,58%)` : activeColor;
+    if(!currentStroke){
+      currentStroke = { id:idSeq++, points:[{x:smoothX,y:smoothY}], color:col, width:brushSize, vy:0, vx:0 };
+    } else {
+      const last = currentStroke.points[currentStroke.points.length-1];
+      // ✅ Only add point if moved enough — this is what kills the circles
+      if(Math.hypot(smoothX-last.x, smoothY-last.y) > MIN_DIST){
+        currentStroke.points.push({x:smoothX,y:smoothY});
+      }
     }
-    currentStroke.points.push({ x: smoothCursor.x, y: smoothCursor.y });
+
+  // ── FIST/PAUSE: no fingers up ────────────────
+  } else if(!iUp && !mUp && !rUp && !pUp){
+    status.textContent='PAUSED ✊'; status.style.color='rgba(255,255,255,0.35)';
+    setActive('g-pause');
+    if(currentStroke){ if(currentStroke.points.length>=MIN_PTS) strokes.push(currentStroke); currentStroke=null; }
+
+  // ── IDLE ─────────────────────────────────────
   } else {
-    // Idle / Commit
-    if (currentStroke) {
-      strokes.push(currentStroke);
-      currentStroke = null;
-    }
+    status.textContent='TRACKING ✅'; status.style.color='#00f5ff';
+    setActive(null);
+    if(currentStroke){ if(currentStroke.points.length>=MIN_PTS) strokes.push(currentStroke); currentStroke=null; }
   }
+
+  if(rainbowOn) hue=(hue+2)%360;
 });
 
-// Start Camera
+// ── CAMERA ───────────────────────────────────────
 const video = document.getElementById('video');
-navigator.mediaDevices.getUserMedia({ video: true }).then(stream => {
-  video.srcObject = stream;
-  video.play();
-  
-  async function predict() {
-    await hands.send({ image: video });
-    requestAnimationFrame(predict);
-  }
-  predict();
-});
+navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user', width:640, height:480 } })
+  .then(stream=>{
+    video.srcObject=stream; video.play();
+    video.addEventListener('loadeddata',()=>{
+      async function predict(){
+        if(video.readyState>=2) await hands.send({image:video});
+        requestAnimationFrame(predict);
+      }
+      predict();
+    });
+  })
+  .catch(err=>{
+    document.getElementById('loading').innerHTML=`
+      <h2 style="font-family:monospace;color:#cc3333;">CAMERA ERROR</h2>
+      <p style="margin-top:14px;font-size:13px;text-align:center;line-height:2.2;color:#666;">
+        ${err.name==='NotAllowedError'
+          ? 'Permission denied.<br>Click 🔒 in address bar → Allow Camera → Reload'
+          : err.message}
+      </p>`;
+  });
 
-init();
-draw();
+// ── KEYBOARD ─────────────────────────────────────
+document.addEventListener('keydown', e=>{
+  if((e.ctrlKey||e.metaKey)&&e.key==='z'){ e.preventDefault(); undoStroke(); }
+  if((e.ctrlKey||e.metaKey)&&e.key==='s'){ e.preventDefault(); saveImage(); }
+  if(e.key==='Escape') clearAll();
+  if(e.key==='g') toggleGravity();
+  if(e.key==='r') toggleRainbow();
+});
 </script>
 </body>
 </html>
